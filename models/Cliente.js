@@ -12,7 +12,6 @@ const clienteSchema = new mongoose.Schema({
   email: {
     type: String,
     required: [true, 'Email é obrigatório'],
-    unique: true,
     lowercase: true,
     trim: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Email inválido']
@@ -43,8 +42,6 @@ const clienteSchema = new mongoose.Schema({
   },
   cpf: {
     type: String,
-    unique: true,
-    sparse: true, // Permite múltiplos documentos sem CPF
     trim: true,
     match: [/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, 'Formato de CPF inválido']
   },

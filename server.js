@@ -13,8 +13,8 @@ connectDB();
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ charset: 'utf-8' }));
+app.use(bodyParser.urlencoded({ extended: true, charset: 'utf-8' }));
 app.use(express.static('public'));
 
 // Rotas da API
@@ -23,9 +23,12 @@ app.use(express.static('public'));
 app.get('/api/clientes', async (req, res) => {
   try {
     const clientes = await Cliente.find({ ativo: true })
-      .sort({ data_cadastro: -1 })
-      .lean();
-    res.json(clientes);
+      .sort({ data_cadastro: -1 });
+    
+    // Aplicar toJSON() para converter _id para id
+    const clientesFormatados = clientes.map(cliente => cliente.toJSON());
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(clientesFormatados);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -38,7 +41,8 @@ app.get('/api/clientes/:id', async (req, res) => {
     if (!cliente || !cliente.ativo) {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
-    res.json(cliente);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(cliente.toJSON());
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -66,15 +70,13 @@ app.post('/api/clientes', async (req, res) => {
     });
 
     await cliente.save();
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.status(201).json({ 
       id: cliente._id, 
       message: 'Cliente cadastrado com sucesso' 
     });
   } catch (error) {
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern)[0];
-      res.status(400).json({ error: `${field} já cadastrado` });
-    } else if (error.name === 'ValidationError') {
+    if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
       res.status(400).json({ error: messages.join(', ') });
     } else {
@@ -111,12 +113,10 @@ app.put('/api/clientes/:id', async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
 
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json({ message: 'Cliente atualizado com sucesso' });
   } catch (error) {
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern)[0];
-      res.status(400).json({ error: `${field} já cadastrado` });
-    } else if (error.name === 'ValidationError') {
+    if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
       res.status(400).json({ error: messages.join(', ') });
     } else {
@@ -138,6 +138,7 @@ app.delete('/api/clientes/:id', async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
 
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json({ message: 'Cliente deletado com sucesso' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -149,7 +150,9 @@ app.get('/api/clientes/buscar/:termo', async (req, res) => {
   try {
     const termo = req.params.termo;
     const clientes = await Cliente.buscarClientes(termo);
-    res.json(clientes);
+    const clientesFormatados = clientes.map(cliente => cliente.toJSON());
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(clientesFormatados);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -160,6 +163,7 @@ app.get('/api/estatisticas', async (req, res) => {
   try {
     const stats = await Cliente.obterEstatisticas();
     const resultado = stats.length > 0 ? stats[0] : { total: 0, hoje: 0 };
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json(resultado);
   } catch (error) {
     res.status(500).json({ error: error.message });

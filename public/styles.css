@@ -306,6 +306,9 @@ body {
 .client-actions {
     display: flex;
     gap: 8px;
+    position: relative;
+    z-index: 10;
+    pointer-events: auto;
 }
 
 .action-btn {
@@ -317,6 +320,9 @@ body {
     font-weight: 500;
     transition: all 0.2s ease;
     background: #f8fafc;
+    position: relative;
+    z-index: 10;
+    pointer-events: auto;
 }
 
 .edit-btn {

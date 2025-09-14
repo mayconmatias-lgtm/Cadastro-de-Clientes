@@ -150,10 +150,10 @@ function createClientCard(client) {
                     <div class="client-email">${client.email}</div>
                 </div>
                 <div class="client-actions">
-                    <button class="action-btn edit-btn" onclick="editClient(${client.id})">
+                    <button class="action-btn edit-btn" onclick="editClient('${client.id}')">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="action-btn delete-btn" onclick="deleteClient(${client.id})">
+                    <button class="action-btn delete-btn" onclick="deleteClient('${client.id}')">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -281,6 +281,8 @@ function editClient(id) {
     const client = clients.find(c => c.id === id);
     if (client) {
         openClientModal(client);
+    } else {
+        showError('Cliente não encontrado');
     }
 }
 
@@ -288,8 +290,13 @@ function editClient(id) {
 let clientToDelete = null;
 
 function deleteClient(id) {
-    clientToDelete = id;
-    deleteModal.style.display = 'block';
+    const client = clients.find(c => c.id === id);
+    if (client) {
+        clientToDelete = id;
+        deleteModal.style.display = 'block';
+    } else {
+        showError('Cliente não encontrado');
+    }
 }
 
 function closeDeleteModal() {
@@ -441,6 +448,7 @@ function showSuccess(message) {
         notification.remove();
     }, 3000);
 }
+
 
 // Adicionar animação CSS para as notificações
 const style = document.createElement('style');
