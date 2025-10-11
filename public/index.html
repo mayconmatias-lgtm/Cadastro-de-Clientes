@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -24,6 +25,88 @@
             </div>
         </div>
 
+        <!-- Seção de Filtros -->
+        <div class="filters-section">
+            <div class="filters-header">
+                <h3><i class="fas fa-filter"></i> Filtros</h3>
+                <button id="clearFiltersBtn" class="btn btn-secondary btn-sm">
+                    <i class="fas fa-times"></i> Limpar Filtros
+                </button>
+            </div>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="filterCategoria">
+                        <i class="fas fa-tag"></i> Categoria
+                    </label>
+                    <select id="filterCategoria" class="filter-select">
+                        <option value="">Todas</option>
+                        <option value="VIP">VIP</option>
+                        <option value="Regular">Regular</option>
+                        <option value="Lead">Lead</option>
+                        <option value="Inativo">Inativo</option>
+                        <option value="Outro">Outro</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterStatus">
+                        <i class="fas fa-check-circle"></i> Status de Pagamento
+                    </label>
+                    <select id="filterStatus" class="filter-select">
+                        <option value="">Todos</option>
+                        <option value="pago">Pago</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="cancelado">Cancelado</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterEstado">
+                        <i class="fas fa-map-marker-alt"></i> Estado
+                    </label>
+                    <select id="filterEstado" class="filter-select">
+                        <option value="">Todos</option>
+                        <option value="AC">Acre</option>
+                        <option value="AL">Alagoas</option>
+                        <option value="AM">Amazonas</option>
+                        <option value="BA">Bahia</option>
+                        <option value="CE">Ceará</option>
+                        <option value="DF">Distrito Federal</option>
+                        <option value="ES">Espírito Santo</option>
+                        <option value="GO">Goiás</option>
+                        <option value="MA">Maranhão</option>
+                        <option value="MG">Minas Gerais</option>
+                        <option value="MS">Mato Grosso do Sul</option>
+                        <option value="MT">Mato Grosso</option>
+                        <option value="PA">Pará</option>
+                        <option value="PB">Paraíba</option>
+                        <option value="PE">Pernambuco</option>
+                        <option value="PI">Piauí</option>
+                        <option value="PR">Paraná</option>
+                        <option value="RJ">Rio de Janeiro</option>
+                        <option value="RN">Rio Grande do Norte</option>
+                        <option value="RO">Rondônia</option>
+                        <option value="RR">Roraima</option>
+                        <option value="RS">Rio Grande do Sul</option>
+                        <option value="SC">Santa Catarina</option>
+                        <option value="SE">Sergipe</option>
+                        <option value="SP">São Paulo</option>
+                        <option value="TO">Tocantins</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterValorMin">
+                        <i class="fas fa-dollar-sign"></i> Valor Mínimo
+                    </label>
+                    <input type="number" id="filterValorMin" class="filter-input" placeholder="R$ 0">
+                </div>
+                <div class="filter-group">
+                    <label for="filterValorMax">
+                        <i class="fas fa-dollar-sign"></i> Valor Máximo
+                    </label>
+                    <input type="number" id="filterValorMax" class="filter-input" placeholder="R$ 999999">
+                </div>
+            </div>
+        </div>
+
         <div class="stats-section">
             <div class="stat-card">
                 <i class="fas fa-users"></i>
@@ -38,6 +121,50 @@
                     <h3 id="todayClients">0</h3>
                     <p>Cadastrados Hoje</p>
                 </div>
+            </div>
+            <div class="stat-card stat-success">
+                <i class="fas fa-check-circle"></i>
+                <div>
+                    <h3 id="totalPago">0</h3>
+                    <p>Pagamentos Confirmados</p>
+                </div>
+            </div>
+            <div class="stat-card stat-warning">
+                <i class="fas fa-clock"></i>
+                <div>
+                    <h3 id="totalPendente">0</h3>
+                    <p>Pagamentos Pendentes</p>
+                </div>
+            </div>
+            <div class="stat-card stat-money">
+                <i class="fas fa-dollar-sign"></i>
+                <div>
+                    <h3 id="valorTotal">R$ 0,00</h3>
+                    <p>Valor Total</p>
+                </div>
+            </div>
+            <div class="stat-card stat-money-success">
+                <i class="fas fa-money-bill-wave"></i>
+                <div>
+                    <h3 id="valorPago">R$ 0,00</h3>
+                    <p>Valores Recebidos</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção de Gráficos -->
+        <div class="charts-section">
+            <div class="chart-container">
+                <h3><i class="fas fa-chart-pie"></i> Clientes por Categoria</h3>
+                <canvas id="categoryChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3><i class="fas fa-chart-bar"></i> Status de Pagamento</h3>
+                <canvas id="paymentChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3><i class="fas fa-map"></i> Clientes por Estado</h3>
+                <canvas id="stateChart"></canvas>
             </div>
         </div>
 
@@ -131,6 +258,30 @@
                             <option value="TO">Tocantins</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="categoria">Categoria</label>
+                        <select id="categoria" name="categoria">
+                            <option value="Regular">Regular</option>
+                            <option value="VIP">VIP</option>
+                            <option value="Lead">Lead</option>
+                            <option value="Inativo">Inativo</option>
+                            <option value="Outro">Outro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="status_pagamento">Status de Pagamento</label>
+                        <select id="status_pagamento" name="status_pagamento">
+                            <option value="pendente">Pendente</option>
+                            <option value="pago">Pago</option>
+                            <option value="cancelado">Cancelado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="valor">Valor (R$)</label>
+                    <input type="text" id="valor" name="valor" placeholder="0,00">
                 </div>
                 <div class="form-group">
                     <label for="observacoes">Observações</label>

@@ -3,6 +3,11 @@ let clients = [];
 let currentClientId = null;
 let isGridView = true;
 
+// Variáveis dos gráficos
+let categoryChart = null;
+let paymentChart = null;
+let stateChart = null;
+
 // Elementos DOM
 const addClientBtn = document.getElementById('addClientBtn');
 const clientModal = document.getElementById('clientModal');
@@ -14,6 +19,14 @@ const gridViewBtn = document.getElementById('gridViewBtn');
 const listViewBtn = document.getElementById('listViewBtn');
 const totalClientsSpan = document.getElementById('totalClients');
 const todayClientsSpan = document.getElementById('todayClients');
+
+// Elementos de filtro
+const filterCategoria = document.getElementById('filterCategoria');
+const filterStatus = document.getElementById('filterStatus');
+const filterEstado = document.getElementById('filterEstado');
+const filterValorMin = document.getElementById('filterValorMin');
+const filterValorMax = document.getElementById('filterValorMax');
+const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
@@ -42,6 +55,14 @@ function setupEventListeners() {
     gridViewBtn.addEventListener('click', () => setViewMode(true));
     listViewBtn.addEventListener('click', () => setViewMode(false));
     
+    // Filtros
+    filterCategoria.addEventListener('change', applyFilters);
+    filterStatus.addEventListener('change', applyFilters);
+    filterEstado.addEventListener('change', applyFilters);
+    filterValorMin.addEventListener('input', debounce(applyFilters, 500));
+    filterValorMax.addEventListener('input', debounce(applyFilters, 500));
+    clearFiltersBtn.addEventListener('click', clearFilters);
+    
     // Fechar modais clicando fora
     window.addEventListener('click', (e) => {
         if (e.target === clientModal) closeClientModal();
@@ -53,6 +74,7 @@ function setupEventListeners() {
 function setupFormValidation() {
     const telefoneInput = document.getElementById('telefone');
     const cpfInput = document.getElementById('cpf');
+    const valorInput = document.getElementById('valor');
     
     // Máscara para telefone
     telefoneInput.addEventListener('input', function(e) {
@@ -81,22 +103,36 @@ function setupFormValidation() {
         }
         e.target.value = value;
     });
+    
+    // Máscara para valor (moeda brasileira)
+    valorInput.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        value = (parseInt(value) / 100).toFixed(2);
+        value = value.replace('.', ',');
+        value = value.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        e.target.value = value;
+    });
 }
 
 // Carregar clientes
 async function loadClients() {
   try {
     showLoading();
-    const [clientsResponse, statsResponse] = await Promise.all([
+    const [clientsResponse, statsResponse, categoriesResponse, statesResponse] = await Promise.all([
       fetch('/api/clientes'),
-      fetch('/api/estatisticas')
+      fetch('/api/estatisticas'),
+      fetch('/api/estatisticas/categorias'),
+      fetch('/api/estatisticas/estados')
     ]);
     
     clients = await clientsResponse.json();
     const stats = await statsResponse.json();
+    const categories = await categoriesResponse.json();
+    const states = await statesResponse.json();
     
     renderClients(clients);
     updateStats(stats);
+    updateCharts(stats, categories, states);
   } catch (error) {
     showError('Erro ao carregar clientes: ' + error.message);
   }
@@ -117,6 +153,9 @@ function renderClients(clientsToRender) {
     
     const clientsHTML = clientsToRender.map(client => createClientCard(client)).join('');
     clientsContainer.innerHTML = clientsHTML;
+    
+    // Aplicar modo de visualização atual
+    applyCurrentViewMode();
     
     // Adicionar animação
     const cards = clientsContainer.querySelectorAll('.client-card');
@@ -142,8 +181,30 @@ function createClientCard(client) {
         return phone;
     };
     
+    const formatCurrency = (value) => {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(value || 0);
+    };
+    
+    const getCategoryBadge = (categoria) => {
+        const badgeClass = `badge-${(categoria || 'regular').toLowerCase()}`;
+        return `<span class="badge ${badgeClass}">${categoria || 'Regular'}</span>`;
+    };
+    
+    const getStatusBadge = (status) => {
+        const badgeClass = `badge-${(status || 'pendente').toLowerCase()}`;
+        const statusText = {
+            'pago': 'Pago',
+            'pendente': 'Pendente',
+            'cancelado': 'Cancelado'
+        };
+        return `<span class="badge ${badgeClass}">${statusText[status] || 'Pendente'}</span>`;
+    };
+    
     return `
-        <div class="client-card ${isGridView ? '' : 'list-view'}">
+        <div class="client-card">
             <div class="client-header">
                 <div>
                     <div class="client-name">${client.nome}</div>
@@ -157,6 +218,10 @@ function createClientCard(client) {
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
+            </div>
+            <div class="client-badges">
+                ${getCategoryBadge(client.categoria)}
+                ${getStatusBadge(client.status_pagamento)}
             </div>
             <div class="client-info">
                 ${client.telefone ? `
@@ -182,6 +247,12 @@ function createClientCard(client) {
                     <span>Cadastrado em ${formatDate(client.data_cadastro)}</span>
                 </div>
             </div>
+            ${client.valor > 0 ? `
+                <div class="client-valor">
+                    <span>Valor:</span>
+                    <strong>${formatCurrency(client.valor)}</strong>
+                </div>
+            ` : ''}
             ${client.observacoes ? `
                 <div class="client-observations">
                     <strong>Observações:</strong> ${client.observacoes}
@@ -193,8 +264,182 @@ function createClientCard(client) {
 
 // Atualizar estatísticas
 function updateStats(stats) {
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value || 0);
+  };
+  
   totalClientsSpan.textContent = stats.total || 0;
   todayClientsSpan.textContent = stats.hoje || 0;
+  document.getElementById('totalPago').textContent = stats.totalPago || 0;
+  document.getElementById('totalPendente').textContent = stats.totalPendente || 0;
+  document.getElementById('valorTotal').textContent = formatCurrency(stats.valorTotal);
+  document.getElementById('valorPago').textContent = formatCurrency(stats.valorPago);
+}
+
+// Atualizar gráficos
+function updateCharts(stats, categories, states) {
+  // Gráfico de Categorias
+  const categoryCtx = document.getElementById('categoryChart');
+  if (categoryChart) {
+    categoryChart.destroy();
+  }
+  
+  const categoryLabels = categories.map(c => c._id || 'Sem Categoria');
+  const categoryData = categories.map(c => c.total);
+  const categoryColors = {
+    'VIP': '#f59e0b',
+    'Regular': '#2563eb',
+    'Lead': '#6366f1',
+    'Inativo': '#64748b',
+    'Outro': '#9333ea'
+  };
+  const categoryBackgrounds = categoryLabels.map(label => categoryColors[label] || '#64748b');
+  
+  categoryChart = new Chart(categoryCtx, {
+    type: 'doughnut',
+    data: {
+      labels: categoryLabels,
+      datasets: [{
+        data: categoryData,
+        backgroundColor: categoryBackgrounds,
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            padding: 15,
+            font: {
+              size: 12,
+              family: 'Inter'
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  // Gráfico de Status de Pagamento
+  const paymentCtx = document.getElementById('paymentChart');
+  if (paymentChart) {
+    paymentChart.destroy();
+  }
+  
+  paymentChart = new Chart(paymentCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Pago', 'Pendente', 'Cancelado'],
+      datasets: [{
+        label: 'Quantidade',
+        data: [stats.totalPago || 0, stats.totalPendente || 0, stats.totalCancelado || 0],
+        backgroundColor: ['#16a34a', '#f59e0b', '#dc2626'],
+        borderWidth: 0,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            font: {
+              size: 11,
+              family: 'Inter'
+            }
+          },
+          grid: {
+            color: '#f1f5f9'
+          }
+        },
+        x: {
+          ticks: {
+            font: {
+              size: 11,
+              family: 'Inter'
+            }
+          },
+          grid: {
+            display: false
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        }
+      }
+    }
+  });
+  
+  // Gráfico de Estados
+  const stateCtx = document.getElementById('stateChart');
+  if (stateChart) {
+    stateChart.destroy();
+  }
+  
+  const stateLabels = states.map(s => s._id);
+  const stateData = states.map(s => s.total);
+  
+  stateChart = new Chart(stateCtx, {
+    type: 'bar',
+    data: {
+      labels: stateLabels,
+      datasets: [{
+        label: 'Clientes',
+        data: stateData,
+        backgroundColor: '#2563eb',
+        borderWidth: 0,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            font: {
+              size: 11,
+              family: 'Inter'
+            }
+          },
+          grid: {
+            color: '#f1f5f9'
+          }
+        },
+        y: {
+          ticks: {
+            font: {
+              size: 11,
+              family: 'Inter'
+            }
+          },
+          grid: {
+            display: false
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        }
+      }
+    }
+  });
 }
 
 // Modal de cliente
@@ -211,10 +456,19 @@ function openClientModal(client = null) {
         document.getElementById('endereco').value = client.endereco || '';
         document.getElementById('cidade').value = client.cidade || '';
         document.getElementById('estado').value = client.estado || '';
+        document.getElementById('categoria').value = client.categoria || 'Regular';
+        document.getElementById('status_pagamento').value = client.status_pagamento || 'pendente';
+        
+        // Formatar valor para exibição
+        const valorFormatado = (client.valor || 0).toFixed(2).replace('.', ',');
+        document.getElementById('valor').value = valorFormatado;
+        
         document.getElementById('observacoes').value = client.observacoes || '';
     } else {
         // Limpar formulário
         clientForm.reset();
+        document.getElementById('categoria').value = 'Regular';
+        document.getElementById('status_pagamento').value = 'pendente';
     }
     
     clientModal.style.display = 'block';
@@ -248,6 +502,14 @@ async function handleClientSubmit(e) {
     if (!isValidEmail(clientData.email)) {
         showError('Email inválido');
         return;
+    }
+    
+    // Converter valor de formato brasileiro para número
+    if (clientData.valor) {
+        const valorString = clientData.valor.replace(/\./g, '').replace(',', '.');
+        clientData.valor = parseFloat(valorString) || 0;
+    } else {
+        clientData.valor = 0;
     }
     
     try {
@@ -327,21 +589,97 @@ async function confirmDelete() {
 
 // Busca
 function handleSearch(e) {
-    const term = e.target.value.toLowerCase().trim();
+    applyFilters();
+}
+
+// Aplicar filtros
+function applyFilters() {
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    const categoria = filterCategoria.value;
+    const status = filterStatus.value;
+    const estado = filterEstado.value;
+    const valorMin = parseFloat(filterValorMin.value) || 0;
+    const valorMax = parseFloat(filterValorMax.value) || Infinity;
     
-    if (term === '') {
-        renderClients(clients);
+    let filteredClients = clients;
+    
+    // Filtro de busca por texto
+    if (searchTerm) {
+        filteredClients = filteredClients.filter(client => 
+            client.nome.toLowerCase().includes(searchTerm) ||
+            client.email.toLowerCase().includes(searchTerm) ||
+            (client.telefone && client.telefone.includes(searchTerm)) ||
+            (client.cpf && client.cpf.includes(searchTerm))
+        );
+    }
+    
+    // Filtro por categoria
+    if (categoria) {
+        filteredClients = filteredClients.filter(client => 
+            client.categoria === categoria
+        );
+    }
+    
+    // Filtro por status
+    if (status) {
+        filteredClients = filteredClients.filter(client => 
+            client.status_pagamento === status
+        );
+    }
+    
+    // Filtro por estado
+    if (estado) {
+        filteredClients = filteredClients.filter(client => 
+            client.estado === estado
+        );
+    }
+    
+    // Filtro por valor
+    filteredClients = filteredClients.filter(client => {
+        const valor = client.valor || 0;
+        return valor >= valorMin && valor <= valorMax;
+    });
+    
+    renderClients(filteredClients);
+    updateFilteredStats(filteredClients);
+}
+
+// Limpar filtros
+function clearFilters() {
+    searchInput.value = '';
+    filterCategoria.value = '';
+    filterStatus.value = '';
+    filterEstado.value = '';
+    filterValorMin.value = '';
+    filterValorMax.value = '';
+    
+    // Resetar título da seção
+    const clientsSection = document.querySelector('.section-header h2');
+    if (clientsSection) {
+        clientsSection.textContent = 'Lista de Clientes';
+    }
+    
+    renderClients(clients);
+}
+
+// Atualizar estatísticas dos clientes filtrados
+function updateFilteredStats(filteredClients) {
+    const totalFiltrado = filteredClients.length;
+    
+    if (totalFiltrado === clients.length) {
+        // Se está mostrando todos, não atualiza as estatísticas
         return;
     }
     
-    const filteredClients = clients.filter(client => 
-        client.nome.toLowerCase().includes(term) ||
-        client.email.toLowerCase().includes(term) ||
-        (client.telefone && client.telefone.includes(term)) ||
-        (client.cpf && client.cpf.includes(term))
-    );
-    
-    renderClients(filteredClients);
+    // Mostrar quantos clientes estão sendo exibidos
+    const clientsSection = document.querySelector('.section-header h2');
+    if (clientsSection) {
+        if (totalFiltrado < clients.length) {
+            clientsSection.innerHTML = `Lista de Clientes <span style="color: #64748b; font-size: 0.9rem; font-weight: 400;">(${totalFiltrado} de ${clients.length})</span>`;
+        } else {
+            clientsSection.textContent = 'Lista de Clientes';
+        }
+    }
 }
 
 // Modo de visualização
@@ -350,9 +688,18 @@ function setViewMode(grid) {
     gridViewBtn.classList.toggle('active', grid);
     listViewBtn.classList.toggle('active', !grid);
     
+    applyCurrentViewMode();
+}
+
+// Aplicar modo de visualização atual
+function applyCurrentViewMode() {
+    // Aplicar classe no container
+    clientsContainer.classList.toggle('list-view', !isGridView);
+    
+    // Aplicar classe nos cards
     const cards = clientsContainer.querySelectorAll('.client-card');
     cards.forEach(card => {
-        card.classList.toggle('list-view', !grid);
+        card.classList.toggle('list-view', !isGridView);
     });
 }
 

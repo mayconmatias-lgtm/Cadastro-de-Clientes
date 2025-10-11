@@ -51,7 +51,7 @@ app.get('/api/clientes/:id', async (req, res) => {
 // Cadastrar novo cliente
 app.post('/api/clientes', async (req, res) => {
   try {
-    const { nome, email, telefone, endereco, cidade, estado, cpf, observacoes } = req.body;
+    const { nome, email, telefone, endereco, cidade, estado, cpf, observacoes, valor, status_pagamento, categoria } = req.body;
     
     // Validações básicas
     if (!nome || !email) {
@@ -66,7 +66,10 @@ app.post('/api/clientes', async (req, res) => {
       cidade,
       estado,
       cpf,
-      observacoes
+      observacoes,
+      valor: valor || 0,
+      status_pagamento: status_pagamento || 'pendente',
+      categoria: categoria || 'Regular'
     });
 
     await cliente.save();
@@ -88,7 +91,7 @@ app.post('/api/clientes', async (req, res) => {
 // Atualizar cliente
 app.put('/api/clientes/:id', async (req, res) => {
   try {
-    const { nome, email, telefone, endereco, cidade, estado, cpf, observacoes } = req.body;
+    const { nome, email, telefone, endereco, cidade, estado, cpf, observacoes, valor, status_pagamento, categoria } = req.body;
     
     if (!nome || !email) {
       return res.status(400).json({ error: 'Nome e email são obrigatórios' });
@@ -104,7 +107,10 @@ app.put('/api/clientes/:id', async (req, res) => {
         cidade,
         estado,
         cpf,
-        observacoes
+        observacoes,
+        valor,
+        status_pagamento,
+        categoria
       },
       { new: true, runValidators: true }
     );
@@ -162,9 +168,40 @@ app.get('/api/clientes/buscar/:termo', async (req, res) => {
 app.get('/api/estatisticas', async (req, res) => {
   try {
     const stats = await Cliente.obterEstatisticas();
-    const resultado = stats.length > 0 ? stats[0] : { total: 0, hoje: 0 };
+    const resultado = stats.length > 0 ? stats[0] : { 
+      total: 0, 
+      hoje: 0,
+      totalPago: 0,
+      totalPendente: 0,
+      totalCancelado: 0,
+      valorTotal: 0,
+      valorPago: 0,
+      valorPendente: 0
+    };
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json(resultado);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Estatísticas por categoria
+app.get('/api/estatisticas/categorias', async (req, res) => {
+  try {
+    const stats = await Cliente.obterEstatisticasPorCategoria();
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Estatísticas por estado
+app.get('/api/estatisticas/estados', async (req, res) => {
+  try {
+    const stats = await Cliente.obterEstatisticasPorEstado();
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

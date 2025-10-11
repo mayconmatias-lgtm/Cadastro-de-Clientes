@@ -50,6 +50,27 @@ const clienteSchema = new mongoose.Schema({
     trim: true,
     maxlength: [500, 'Observações devem ter no máximo 500 caracteres']
   },
+  valor: {
+    type: Number,
+    default: 0,
+    min: [0, 'Valor não pode ser negativo']
+  },
+  status_pagamento: {
+    type: String,
+    enum: {
+      values: ['pago', 'pendente', 'cancelado'],
+      message: 'Status de pagamento inválido'
+    },
+    default: 'pendente'
+  },
+  categoria: {
+    type: String,
+    enum: {
+      values: ['VIP', 'Regular', 'Lead', 'Inativo', 'Outro'],
+      message: 'Categoria inválida'
+    },
+    default: 'Regular'
+  },
   data_cadastro: {
     type: Date,
     default: Date.now
@@ -131,8 +152,74 @@ clienteSchema.statics.obterEstatisticas = function() {
               0
             ]
           }
+        },
+        totalPago: {
+          $sum: {
+            $cond: [{ $eq: ['$status_pagamento', 'pago'] }, 1, 0]
+          }
+        },
+        totalPendente: {
+          $sum: {
+            $cond: [{ $eq: ['$status_pagamento', 'pendente'] }, 1, 0]
+          }
+        },
+        totalCancelado: {
+          $sum: {
+            $cond: [{ $eq: ['$status_pagamento', 'cancelado'] }, 1, 0]
+          }
+        },
+        valorTotal: { $sum: '$valor' },
+        valorPago: {
+          $sum: {
+            $cond: [{ $eq: ['$status_pagamento', 'pago'] }, '$valor', 0]
+          }
+        },
+        valorPendente: {
+          $sum: {
+            $cond: [{ $eq: ['$status_pagamento', 'pendente'] }, '$valor', 0]
+          }
         }
       }
+    }
+  ]);
+};
+
+// Método estático para estatísticas por categoria
+clienteSchema.statics.obterEstatisticasPorCategoria = function() {
+  return this.aggregate([
+    {
+      $match: { ativo: true }
+    },
+    {
+      $group: {
+        _id: '$categoria',
+        total: { $sum: 1 },
+        valorTotal: { $sum: '$valor' }
+      }
+    },
+    {
+      $sort: { total: -1 }
+    }
+  ]);
+};
+
+// Método estático para estatísticas por estado
+clienteSchema.statics.obterEstatisticasPorEstado = function() {
+  return this.aggregate([
+    {
+      $match: { ativo: true, estado: { $ne: null, $ne: '' } }
+    },
+    {
+      $group: {
+        _id: '$estado',
+        total: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { total: -1 }
+    },
+    {
+      $limit: 10
     }
   ]);
 };
