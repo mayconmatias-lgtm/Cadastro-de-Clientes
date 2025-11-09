@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const connectDB = require('./config/database');
 const Cliente = require('./models/Cliente');
+const metaRoutes = require('./routes/metaRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -16,6 +17,9 @@ app.use(cors());
 app.use(bodyParser.json({ charset: 'utf-8' }));
 app.use(bodyParser.urlencoded({ extended: true, charset: 'utf-8' }));
 app.use(express.static('public'));
+
+// Rotas de metas e dashboard
+app.use('/api/metas', metaRoutes);
 
 // Rotas da API
 

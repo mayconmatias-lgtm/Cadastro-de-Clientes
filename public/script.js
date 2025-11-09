@@ -2,6 +2,8 @@
 let clients = [];
 let currentClientId = null;
 let isGridView = true;
+let goalCurrentPeriod = null;
+let metasDisponiveis = [];
 
 // Variáveis dos gráficos
 let categoryChart = null;
@@ -27,10 +29,19 @@ const filterEstado = document.getElementById('filterEstado');
 const filterValorMin = document.getElementById('filterValorMin');
 const filterValorMax = document.getElementById('filterValorMax');
 const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+const goalsContent = document.getElementById('goalsContent');
+const goalPeriodSelect = document.getElementById('goalPeriodSelect');
+const openGoalModalBtn = document.getElementById('openGoalModal');
+const goalModal = document.getElementById('goalModal');
+const goalForm = document.getElementById('goalForm');
+const closeGoalModalBtn = document.getElementById('closeGoalModal');
+const cancelGoalBtn = document.getElementById('cancelGoalBtn');
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
     loadClients();
+    goalCurrentPeriod = getCurrentGoalPeriod();
+    loadGoals(goalCurrentPeriod);
     setupEventListeners();
     setupFormValidation();
 });
@@ -67,7 +78,24 @@ function setupEventListeners() {
     window.addEventListener('click', (e) => {
         if (e.target === clientModal) closeClientModal();
         if (e.target === deleteModal) closeDeleteModal();
+        if (e.target === goalModal) closeGoalModal();
     });
+
+    if (openGoalModalBtn) {
+        openGoalModalBtn.addEventListener('click', openGoalModal);
+    }
+    if (closeGoalModalBtn) {
+        closeGoalModalBtn.addEventListener('click', closeGoalModal);
+    }
+    if (cancelGoalBtn) {
+        cancelGoalBtn.addEventListener('click', closeGoalModal);
+    }
+    if (goalForm) {
+        goalForm.addEventListener('submit', handleGoalSubmit);
+    }
+    if (goalPeriodSelect) {
+        goalPeriodSelect.addEventListener('change', handleGoalPeriodChange);
+    }
 }
 
 // Validação de formulário
@@ -136,6 +164,35 @@ async function loadClients() {
   } catch (error) {
     showError('Erro ao carregar clientes: ' + error.message);
   }
+}
+
+// Carregar metas
+async function loadGoals(periodo = getCurrentGoalPeriod()) {
+    if (!goalsContent) return;
+
+    try {
+        goalCurrentPeriod = periodo;
+        showGoalsLoading();
+
+        const [goalResponse, metasResponse] = await Promise.all([
+            fetch(`/api/metas/${periodo.mes}/${periodo.ano}`),
+            fetch('/api/metas')
+        ]);
+
+        const goalData = goalResponse.ok ? await goalResponse.json() : { meta: null, progresso: {} };
+        metasDisponiveis = metasResponse.ok ? await metasResponse.json() : [];
+
+        populateGoalPeriodSelect(metasDisponiveis, periodo);
+        renderGoalDashboard(goalData, periodo);
+    } catch (error) {
+        goalsContent.innerHTML = `
+            <div class="empty-goal">
+                <i class="fas fa-triangle-exclamation"></i>
+                <h3>Não foi possível carregar as metas</h3>
+                <p>${error.message}</p>
+            </div>
+        `;
+    }
 }
 
 // Renderizar clientes
@@ -719,6 +776,226 @@ function debounce(func, wait) {
 function isValidEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+}
+
+// Utilitários de metas
+function getCurrentGoalPeriod() {
+    const now = new Date();
+    return {
+        mes: now.getMonth() + 1,
+        ano: now.getFullYear()
+    };
+}
+
+function formatMonthName(mes) {
+    const date = new Date(2000, mes - 1, 1);
+    return date.toLocaleString('pt-BR', { month: 'long' });
+}
+
+function formatPeriodo({ mes, ano }) {
+    const mesNome = formatMonthName(mes);
+    return `${mesNome.charAt(0).toUpperCase() + mesNome.slice(1)} / ${ano}`;
+}
+
+function formatNumero(valor) {
+    return Number(valor || 0).toLocaleString('pt-BR');
+}
+
+function formatMoeda(valor) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+}
+
+function formatPercentual(valor) {
+    if (valor === null || valor === undefined || Number.isNaN(valor)) return '—';
+    return `${Number(valor).toFixed(1)}%`;
+}
+
+function formatDateTime(data) {
+    if (!data) return '—';
+    const date = new Date(data);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function populateGoalPeriodSelect(metas, periodoSelecionado) {
+    if (!goalPeriodSelect) return;
+
+    const valorSelecionado = `${periodoSelecionado.mes}-${periodoSelecionado.ano}`;
+    goalPeriodSelect.innerHTML = '';
+
+    const optionAtual = document.createElement('option');
+    optionAtual.value = '';
+    optionAtual.textContent = 'Período atual';
+    goalPeriodSelect.appendChild(optionAtual);
+
+    metas.forEach(meta => {
+        const option = document.createElement('option');
+        option.value = `${meta.mes}-${meta.ano}`;
+        const mesNome = formatMonthName(meta.mes);
+        option.textContent = `${mesNome.charAt(0).toUpperCase() + mesNome.slice(1)} / ${meta.ano}`;
+        if (option.value === valorSelecionado) {
+            option.selected = true;
+        }
+        goalPeriodSelect.appendChild(option);
+    });
+
+    if (!goalPeriodSelect.value) {
+        goalPeriodSelect.value = valorSelecionado;
+    }
+}
+
+function showGoalsLoading() {
+    goalsContent.innerHTML = `
+        <div class="loading">
+            <i class="fas fa-spinner"></i>
+            <p>Carregando metas...</p>
+        </div>
+    `;
+}
+
+function renderGoalDashboard(data, periodo) {
+    const { meta, progresso = {} } = data;
+
+    if (!meta) {
+        goalsContent.innerHTML = `
+            <div class="empty-goal">
+                <i class="fas fa-chart-line"></i>
+                <h3>Nenhuma meta para ${formatPeriodo(periodo)}</h3>
+                <p>Crie uma meta para acompanhar o desempenho do time.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const metasHtml = `
+        <div class="goals-grid">
+            <div class="goal-card highlight">
+                <h3><i class="fas fa-flag"></i> Meta de ${formatPeriodo(periodo)}</h3>
+                <p>${meta.descricao || 'Sem descrição definida.'}</p>
+                <div class="goal-meta-info">
+                    ${meta.responsavel ? `<span><strong>Responsável:</strong> ${meta.responsavel}</span>` : ''}
+                    ${meta.criadoPor ? `<span><strong>Criado por:</strong> ${meta.criadoPor}</span>` : ''}
+                    <span><strong>Atualizado em:</strong> ${formatDateTime(meta.updatedAt || meta.createdAt)}</span>
+                </div>
+            </div>
+            ${createGoalMetricCard('Novos clientes', meta.metaNovosClientes, progresso.novosClientes, progresso.percentualNovosClientes, formatNumero)}
+            ${createGoalMetricCard('Valor recebido', meta.metaValorPago, progresso.valorPago, progresso.percentualValorPago, formatMoeda)}
+            ${createGoalMetricCard('Valor pendente', meta.metaValorPendente, progresso.valorPendente, progresso.percentualValorPendente, formatMoeda, true)}
+            ${createGoalMetricCard('Retenção', meta.metaRetencao, progresso.retencao, progresso.percentualRetencao, formatPercentual, false, true)}
+        </div>
+    `;
+
+    goalsContent.innerHTML = metasHtml;
+}
+
+function createGoalMetricCard(titulo, metaValor = 0, valorAtual = 0, percentual = null, formatter = formatNumero, inverter = false, percentualAbsoluto = false) {
+    const metaExiste = metaValor !== undefined && metaValor !== null && metaValor !== 0;
+    const atualFormatado = formatter(valorAtual || 0);
+    const metaFormatada = metaExiste ? formatter(metaValor) : '—';
+    const percentualTexto = percentual !== null && percentual !== undefined ? `${percentual.toFixed(1)}%` : '—';
+    const progressoClasse = `goal-card${inverter ? ' warning' : ''}`;
+    const progressoPercentual = percentual !== null && percentual !== undefined ? Math.min(Math.max(percentual, 0), 200) : 0;
+
+    const indicadorMeta = percentualAbsoluto && metaExiste ? `${formatter(metaValor)} (objetivo)` : metaFormatada;
+
+    return `
+        <div class="${progressoClasse}">
+            <h3><i class="fas fa-chart-bar"></i> ${titulo}</h3>
+            <div class="goal-metric">
+                <div>
+                    <span>Realizado</span>
+                    <strong>${atualFormatado}</strong>
+                </div>
+                <div>
+                    <span>Meta</span>
+                    <strong>${indicadorMeta}</strong>
+                </div>
+            </div>
+            ${metaExiste ? `
+            <div class="goal-progress">
+                <div class="goal-progress-bar" style="width: ${Math.min(100, progressoPercentual)}%;"></div>
+            </div>
+            <div class="goal-percentage">${percentualTexto}</div>
+            ` : `
+            <div class="goal-percentage">Defina uma meta para acompanhar este indicador.</div>
+            `}
+        </div>
+    `;
+}
+
+function openGoalModal() {
+    if (!goalModal || !goalForm) return;
+    goalForm.reset();
+    const mesInput = document.getElementById('goalMes');
+    const anoInput = document.getElementById('goalAno');
+    if (mesInput) mesInput.value = goalCurrentPeriod.mes;
+    if (anoInput) anoInput.value = goalCurrentPeriod.ano;
+    goalModal.style.display = 'block';
+}
+
+function closeGoalModal() {
+    if (!goalModal || !goalForm) return;
+    goalModal.style.display = 'none';
+    goalForm.reset();
+}
+
+async function handleGoalSubmit(event) {
+    event.preventDefault();
+    if (!goalForm) return;
+    const formData = new FormData(goalForm);
+    const payload = Object.fromEntries(formData.entries());
+
+    payload.mes = Number(payload.mes);
+    payload.ano = Number(payload.ano);
+
+    ['metaNovosClientes', 'metaValorPago', 'metaValorPendente', 'metaRetencao'].forEach((campo) => {
+        if (payload[campo] === '' || payload[campo] === undefined) {
+            delete payload[campo];
+        } else {
+            payload[campo] = Number(payload[campo]);
+        }
+    });
+
+    if (!payload.mes || !payload.ano) {
+        showError('Informe mês e ano da meta.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/metas', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            showError(result.error || 'Não foi possível salvar a meta.');
+            return;
+        }
+
+        showSuccess('Meta registrada com sucesso!');
+        closeGoalModal();
+        loadGoals({ mes: payload.mes, ano: payload.ano });
+    } catch (error) {
+        showError('Erro ao salvar meta: ' + error.message);
+    }
+}
+
+function handleGoalPeriodChange() {
+    if (!goalPeriodSelect) return;
+    const valor = goalPeriodSelect.value;
+    if (!valor) {
+        loadGoals(getCurrentGoalPeriod());
+        return;
+    }
+    const [mesStr, anoStr] = valor.split('-');
+    loadGoals({
+        mes: Number(mesStr),
+        ano: Number(anoStr)
+    });
 }
 
 function showLoading() {

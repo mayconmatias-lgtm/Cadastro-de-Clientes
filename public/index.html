@@ -152,6 +152,28 @@
             </div>
         </div>
 
+        <!-- Seção de Metas -->
+        <div class="goals-section">
+            <div class="section-header goals-header">
+                <h2><i class="fas fa-bullseye"></i> Metas do Mês</h2>
+                <div class="goals-controls">
+                    <select id="goalPeriodSelect" class="goal-select">
+                        <option value="">Período atual</option>
+                    </select>
+                    <button id="openGoalModal" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus-circle"></i> Nova Meta
+                    </button>
+                </div>
+            </div>
+            <div id="goalsContent" class="goals-content">
+                <div class="empty-goal">
+                    <i class="fas fa-chart-line"></i>
+                    <h3>Nenhuma meta para este período</h3>
+                    <p>Defina uma meta para acompanhar o progresso do time.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Seção de Gráficos -->
         <div class="charts-section">
             <div class="chart-container">
@@ -183,6 +205,82 @@
             <div id="clientsContainer" class="clients-grid">
                 <!-- Clientes serão carregados aqui -->
             </div>
+        </div>
+    </div>
+
+    <!-- Modal para metas -->
+    <div id="goalModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="goalModalTitle">Nova Meta</h2>
+                <button id="closeGoalModal" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="goalForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="goalMes">Mês *</label>
+                        <select id="goalMes" name="mes" required>
+                            <option value="">Selecione...</option>
+                            <option value="1">Janeiro</option>
+                            <option value="2">Fevereiro</option>
+                            <option value="3">Março</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Maio</option>
+                            <option value="6">Junho</option>
+                            <option value="7">Julho</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Setembro</option>
+                            <option value="10">Outubro</option>
+                            <option value="11">Novembro</option>
+                            <option value="12">Dezembro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="goalAno">Ano *</label>
+                        <input type="number" id="goalAno" name="ano" min="2000" max="2100" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="goalDescricao">Descrição</label>
+                    <input type="text" id="goalDescricao" name="descricao" placeholder="Ex: Meta de vendas do mês">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="goalNovosClientes">Meta de novos clientes</label>
+                        <input type="number" id="goalNovosClientes" name="metaNovosClientes" min="0" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="goalValorPago">Meta de valor recebido (R$)</label>
+                        <input type="number" id="goalValorPago" name="metaValorPago" min="0" step="0.01">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="goalValorPendente">Meta de valor pendente (R$)</label>
+                        <input type="number" id="goalValorPendente" name="metaValorPendente" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="goalRetencao">Meta de retenção (%)</label>
+                        <input type="number" id="goalRetencao" name="metaRetencao" min="0" max="100" step="1">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="goalResponsavel">Responsável</label>
+                        <input type="text" id="goalResponsavel" name="responsavel">
+                    </div>
+                    <div class="form-group">
+                        <label for="goalCriadoPor">Criado por</label>
+                        <input type="text" id="goalCriadoPor" name="criadoPor">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancelGoalBtn" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Meta</button>
+                </div>
+            </form>
         </div>
     </div>
 

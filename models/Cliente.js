@@ -224,6 +224,62 @@ clienteSchema.statics.obterEstatisticasPorEstado = function() {
   ]);
 };
 
+// Método estático para métricas por período (dashboard de metas)
+clienteSchema.statics.obterMetricasPorPeriodo = async function(inicio, fim) {
+  const filtroPeriodo = { ativo: true };
+
+  if (inicio || fim) {
+    filtroPeriodo.data_cadastro = {};
+    if (inicio) {
+      filtroPeriodo.data_cadastro.$gte = inicio;
+    }
+    if (fim) {
+      filtroPeriodo.data_cadastro.$lt = fim;
+    }
+  }
+
+  const [stats] = await this.aggregate([
+    { $match: filtroPeriodo },
+    {
+      $group: {
+        _id: null,
+        novosClientes: { $sum: 1 },
+        valorTotal: { $sum: '$valor' },
+        valorPago: {
+          $sum: {
+            $cond: [{ $eq: ['$status_pagamento', 'pago'] }, '$valor', 0]
+          }
+        },
+        valorPendente: {
+          $sum: {
+            $cond: [{ $eq: ['$status_pagamento', 'pendente'] }, '$valor', 0]
+          }
+        },
+        valorCancelado: {
+          $sum: {
+            $cond: [{ $eq: ['$status_pagamento', 'cancelado'] }, '$valor', 0]
+          }
+        }
+      }
+    }
+  ]);
+
+  const totalClientes = await this.countDocuments({});
+  const clientesAtivos = await this.countDocuments({ ativo: true });
+  const retencao = totalClientes === 0 ? 0 : Number(((clientesAtivos / totalClientes) * 100).toFixed(2));
+
+  return {
+    novosClientes: stats?.novosClientes || 0,
+    valorTotal: stats?.valorTotal || 0,
+    valorPago: stats?.valorPago || 0,
+    valorPendente: stats?.valorPendente || 0,
+    valorCancelado: stats?.valorCancelado || 0,
+    clientesAtivos,
+    totalClientes,
+    retencao
+  };
+};
+
 // Método de instância para formatação
 clienteSchema.methods.toJSON = function() {
   const obj = this.toObject();
